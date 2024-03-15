@@ -10,16 +10,12 @@ type Repository struct {
 }
 
 type Commit struct {
-	ID      string `json:"id"`
-	Message string `json:"message"`
-	Author  struct {
-		Username string `json:"username"`
-		Email    string `json:"email"`
-	}
+	ID      string     `json:"id"`
+	Message string     `json:"message"`
+	Author  CommitUser `json:"author"`
 }
 
 type CommitUser struct {
-	Name     string `json:"name"`
 	Email    string `json:"email"`
 	Username string `json:"username"`
 }
