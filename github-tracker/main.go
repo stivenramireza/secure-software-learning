@@ -3,14 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
-	"github-tracker/github-tracker/models"
-	repositoy "github-tracker/github-tracker/repository"
-	"github-tracker/github-tracker/repository/entity"
 	"io"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/mux"
+
+	"github-tracker/github-tracker/models"
+	"github-tracker/github-tracker/repository"
+	"github-tracker/github-tracker/repository/entity"
 )
 
 func postHandler(w http.ResponseWriter, r *http.Request) {
@@ -28,7 +29,7 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(string(body))
 }
 
-func insertGitHubWebhook(ctx context.Context, repo repositoy.Commit, webhook models.GitHubWebhook, body string, createdTime time.Time) error {
+func insertGitHubWebhook(ctx context.Context, repo repository.Commit, webhook models.GitHubWebhook, body string, createdTime time.Time) error {
 	commit := entity.Commit{
 		RepoName:       webhook.Repository.FullName,
 		CommitID:       webhook.HeadCommit.ID,
@@ -40,9 +41,9 @@ func insertGitHubWebhook(ctx context.Context, repo repositoy.Commit, webhook mod
 		UpdatedAt:      createdTime,
 	}
 
-	fmt.Println(commit)
+	err := repo.Insert(ctx, &commit)
 
-	return nil
+	return err
 }
 
 func main() {

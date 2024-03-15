@@ -19,7 +19,6 @@ func TestDummy(t *testing.T) {
 	result := 22
 
 	c.Equal(22, result)
-
 }
 
 func TestInsert(t *testing.T) {
@@ -65,5 +64,5 @@ func TestInsert(t *testing.T) {
 	err = insertGitHubWebhook(ctx, mockCommit, webhook, string(body), createdTime)
 	c.NoError(err)
 
-	// m.AssertExpectations(t)
+	m.AssertExpectations(t)
 }
