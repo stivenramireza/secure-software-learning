@@ -1,4 +1,4 @@
-BUCKET_NAME=stivenramireza-lambda-platzi
+BUCKET_NAME=stivenramireza-lambda-secure-software
 BUILD_NAME=get-metrics.zip
 build:
 	GOOS=linux GOARCH=amd64 go build -o bootstrap main.go
