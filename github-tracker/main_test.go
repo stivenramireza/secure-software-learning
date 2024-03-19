@@ -29,7 +29,7 @@ func TestInsert(t *testing.T) {
 			FullName: "stivenramireza/secure-software-learning",
 		},
 		HeadCommit: models.Commit{
-			ID:      "b1dc2566b219d3941f199b206c057e1ddeaabe43",
+			ID:      "9da3ed5d641d46dd1401d0768bc9dde90e86e1cb",
 			Message: "Add sample code for handle-github-webhook",
 			Author: models.CommitUser{
 				Email:    "stivenramireza@gmail.com",

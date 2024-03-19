@@ -1,3 +1,13 @@
+# Dependencies
 vendor/
 
-*.DS_STORE
+# Terraform
+*.DS_Store
+**.terraform**
+*.hcl
+
+# Name used for golang binary files on make process
+**bootstrap**
+
+# Compressed files
+*.zip 
