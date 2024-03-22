@@ -1,81 +1,99 @@
-package database
+package main
 
 import (
-	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github-tracker/github-tracker/models"
-	"os"
-	"sync"
+	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
 
-	_ "github.com/lib/pq"
+	jose "github.com/go-jose/go-jose/v3"
 )
 
-var (
-	getDbOnce sync.Once
-	db        *sql.DB
-)
+const GitHubUserAgentPrefix = "GitHub-Hookshot"
 
-func connect(ctx context.Context) (*sql.DB, error) {
-	dbHost := os.Getenv("DB_HOST")
-	dbPort := os.Getenv("DB_PORT")
-	dbUser := os.Getenv("DB_USER")
-	dbPasswordSecretId := os.Getenv("DB_PASSWORD")
-	dbName := os.Getenv("DB_NAME")
+func handler(event events.APIGatewayV2CustomAuthorizerV2Request) (events.APIGatewayCustomAuthorizerResponse, error) {
+	route := event.RouteArn
 
-	config, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(models.REGION))
+	path := event.RequestContext.HTTP.Path
+
+	jsonData, err := json.Marshal(event)
 	if err != nil {
-		return &sql.DB{}, err
+		return denyRequest(fmt.Sprintf("error unmarshal event: %s", err.Error()))
 	}
 
-	svc := secretsmanager.NewFromConfig(config)
+	fmt.Println(string(jsonData))
 
-	input := &secretsmanager.GetSecretValueInput{
-		SecretId:     aws.String(dbPasswordSecretId),
-		VersionStage: aws.String("AWSCURRENT"),
+	if path == "/commit" {
+		userAgent, ok := event.Headers["user-agent"]
+		if ok {
+			fmt.Println("user agent: ", userAgent)
+
+			if strings.HasPrefix(userAgent, GitHubUserAgentPrefix) {
+				return allowRequest(route)
+			}
+
+			return denyRequest("path /commit request not allowed")
+		}
 	}
 
-	result, err := svc.GetSecretValue(ctx, input)
-	if err != nil {
-		return &sql.DB{}, err
+	authToken, ok := event.Headers["authorization"]
+	if !ok {
+		return denyRequest("missing auth0 token")
 	}
 
-	if result.SecretString == nil {
-		return &sql.DB{}, err
+	tokenString := strings.TrimPrefix(authToken, "Bearer ")
+	if tokenString == "" {
+		return denyRequest("missing auth0 token")
 	}
 
-	passwordJson := *result.SecretString
-
-	var secret map[string]string
-	err = json.Unmarshal([]byte(passwordJson), &secret)
-	if err != nil {
-		return &sql.DB{}, err
-	}
-
-	password := secret["password"]
-
-	dsn := fmt.Sprintf(`host=%s port=%s user=%s password=%s dbname=%s sslmode=require search_path=public`,
-		dbHost,
-		dbPort,
-		dbUser,
-		password,
-		dbName,
-	)
-
-	return sql.Open("postgres", dsn)
+	return validateToken(tokenString, route)
 }
 
-func Connect(ctx context.Context) (*sql.DB, error) {
-	var err error
+func validateToken(authToken string, route string) (events.APIGatewayCustomAuthorizerResponse, error) {
+	_, err := jose.ParseSigned(authToken)
+	if err != nil {
+		return denyRequest(fmt.Sprintf("invalid authh0 token: %s", err.Error()))
+	}
 
-	getDbOnce.Do(func() {
-		db, err = connect(ctx)
-	})
+	return allowRequest(route)
+}
 
-	return db, err
+func allowRequest(route string) (events.APIGatewayCustomAuthorizerResponse, error) {
+	return events.APIGatewayCustomAuthorizerResponse{
+		PrincipalID: "user",
+		PolicyDocument: events.APIGatewayCustomAuthorizerPolicy{
+			Version: "2012-10-17",
+			Statement: []events.IAMPolicyStatement{
+				{
+					Effect:   "Allow",
+					Action:   []string{"execute-api:Invoke"},
+					Resource: []string{route},
+				},
+			},
+		},
+	}, nil
+}
+
+func denyRequest(reason string) (events.APIGatewayCustomAuthorizerResponse, error) {
+	fmt.Println(reason)
+
+	return events.APIGatewayCustomAuthorizerResponse{
+		PrincipalID: "anonymous",
+		PolicyDocument: events.APIGatewayCustomAuthorizerPolicy{
+			Version: "2012-10-17",
+			Statement: []events.IAMPolicyStatement{
+				{
+					Effect:   "Deny",
+					Action:   []string{"execute-api:Invoke"},
+					Resource: []string{"*"},
+				},
+			},
+		},
+	}, fmt.Errorf(reason)
+}
+
+func main() {
+	lambda.Start(handler)
 }
